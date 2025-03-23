@@ -1,0 +1,133 @@
+{% render 'partials/head.liquid' %}
+
+<h1>{{ station.name }}</h1>
+<p>Welkom bij {{ station.name }}</p>
+
+<!-- Kalender: lijst met maandag t/m zaterdag -->
+<ul class="week-calendar">
+    {% for item in weekDays %}
+    <li class="{% if item.day == selectedDay %}active{% endif %}">
+        <a href="?day={{ item.day }}">{{ item.day | capitalize }} {{ item.dayNumber }}</a>
+    </li>
+    {% endfor %}
+</ul>
+
+<main>
+    <p>Het programma van vandaag:</p>
+
+    <div class="schedule-container">
+        <table class="schedule">
+            <thead>
+              <tr>
+                {% for label in timeSlots %}
+                  <th>{{ label }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                {% assign currentSlot = 0 %}
+                {% assign sortedShows = shows | sort: "slotStart" %}
+                
+                {% for show in sortedShows %}
+                  {% if currentSlot < show.slotStart %}
+                    {% assign gap = show.slotStart | minus: currentSlot %}
+                    <td colspan="{{ gap }}"></td>
+                    {% assign currentSlot = show.slotStart %}
+                  {% endif %}
+          
+                  <td colspan="{{ show.colspan }}" class="show-cell">
+                    <h3 class="show-title">{{ show.title }}</h3>
+                    <span class="show-time">{{ show.from }} - {{ show.until }}</span>
+                    <p class="show-info">{{ show.body | truncate: 50 }}</p>
+                    {% if show.userAvatar %}
+                      <img class="show-image" src="https://fdnd-agency.directus.app/assets/{{ show.userAvatar }}" alt="Avatar">
+                    {% endif %}
+
+                    <!-- Like-knop als hartje -->
+                    <button class="like-button" data-show-id="{{ show.id }}" onclick="handleLikeClick(event, '{{ show.id }}')">
+                      ❤️
+                    </button>
+                  </td>
+                  
+                  {% assign currentSlot = currentSlot | plus: show.colspan %}
+                {% endfor %}
+                
+                {% if currentSlot < totalSlots %}
+                  {% assign gap = totalSlots | minus: currentSlot %}
+                  <td colspan="{{ gap }}"></td>
+                {% endif %}
+              </tr>
+            </tbody>
+          </table>
+    </div>
+</main>
+
+<!-- Login Modal (verborgen, wordt getoond indien nodig) -->
+<div id="loginModal">
+  <div style="background:#fff; padding:20px; margin: 100px auto; width:300px; position: relative;">
+    <h2>Log in</h2>
+    <form id="loginForm" onsubmit="submitLogin(event)">
+       <input type="text" id="loginUsername" placeholder="Vul je naam in" required>
+       <button type="submit">Log in</button>
+    </form>
+    <button onclick="closeLoginModal()">Sluiten</button>
+  </div>
+</div>
+
+<script>
+  function handleLikeClick(event, showId) {
+    event.preventDefault();
+    //localstorage nog omzetten naar serverside
+    const username = localStorage.getItem("username");
+    if (!username) {
+      //sla show op die geliked gaat worden
+      window.pendingLikeShowId = showId;
+      document.getElementById("loginModal").style.display = "block";
+      return;
+    }
+   
+    sendLike(showId, username);
+  }
+
+  //like versturen
+  function sendLike(showId, username) {
+    fetch('/like', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ showId: showId, username: username })
+    })
+    .then(response => {
+      if (response.ok) {
+        alert("Like verstuurd!"); //ff snel window alert erin knallen (word ook een modal denk ik)
+      } else {
+        alert("Er ging iets mis bij het versturen van de like.");
+      }
+    })
+    .catch(error => {
+      console.error("Error:", error);
+    });
+  }
+
+  // Afhandelen van het inloggen in de modal
+  function submitLogin(event) {
+    event.preventDefault();
+    const username = document.getElementById("loginUsername").value;
+    if (username) {
+      // Sla de gebruikersnaam op in localStorage
+      localStorage.setItem("username", username);
+      closeLoginModal();
+      // Als er een pending like is, verstuur die dan
+      if (window.pendingLikeShowId) {
+        sendLike(window.pendingLikeShowId, username);
+        window.pendingLikeShowId = null;
+      }
+    }
+  }
+
+  function closeLoginModal() {
+    document.getElementById("loginModal").style.display = "none";
+  }
+</script>
+
+{% render 'partials/foot.liquid' %}
