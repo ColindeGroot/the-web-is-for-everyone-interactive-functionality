@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { request } from 'express';
 import { Liquid } from 'liquidjs';
 
 // Maak een nieuwe Express-applicatie aan
@@ -49,7 +49,7 @@ app.get('/radio/:name', async (req, res) => {
     }
 
     // Haal de shows-per-dag op met extra velden
-    const showsPerDayResponse = await fetch('https://fdnd-agency.directus.app/items/mh_day?fields=date,shows.mh_shows_id.from,shows.mh_shows_id.until,shows.mh_shows_id.show.body,shows.mh_shows_id.show.name,shows.mh_shows_id.show.radiostation.*,shows.mh_shows_id.show.users.mh_users_id.*,shows.mh_shows_id.show.users.*.*');
+    const showsPerDayResponse = await fetch('https://fdnd-agency.directus.app/items/mh_day?fields=date,shows.mh_shows_id.from,shows.mh_shows_id.until,shows.mh_shows_id.show.id,shows.mh_shows_id.show.body,shows.mh_shows_id.show.name,shows.mh_shows_id.show.radiostation.*,shows.mh_shows_id.show.users.mh_users_id.*,shows.mh_shows_id.show.users.*.*');
     const showsPerDayResponseJSON = await showsPerDayResponse.json();
 
     // Dagmapping: 0 = zondag, 1 = maandag, etc.
@@ -141,14 +141,13 @@ app.get('/radio/:name', async (req, res) => {
     }
     let weekDays = [];
     const daysOfWeek = ["maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag"];
-    for (let i = 0; i < 6; i++) {
+    
+    for (let day = 0; day < 6; day++) {
       let d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      weekDays.push({
-        day: daysOfWeek[i],
-        dayNumber: d.getDate()
-      });
+      d.setDate(monday.getDate() + day);
+      weekDays.push({ day: daysOfWeek[day], dayNumber: d.getDate() });
     }
+    
 
     // Render de radio-pagina met alle benodigde data
     res.render('radio.liquid', {
@@ -165,22 +164,23 @@ app.get('/radio/:name', async (req, res) => {
   }
 });
 
-app.post('/like', async (req, res) => {
-  const { showId, username } = req.body; //show die ik wil liken en username meegeven (username is nog lokaal)
+app.post('/radio/show/:id/station/:name', async (req, res) => {
+  console.log(req.params.id);
   try {
-    const directusResponse = await fetch('https://fdnd-agency.directus.app/items/mh_messages', {
+    const directusResponse = await fetch('https://fdnd-agency.directus.app/items/mh_messages',
+       {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         text: "❤️",
-        for: showId,  // Hiermee wordt aangegeven voor welk item geliket wordt
-        from: username, // je naam die je invult die word weergegeven in de directus
-        show: showId   // Eventueel een extra veld als referentie naar de show
+        for: `showId:` + req.params.id, //Hiermee wordt aangegeven voor welk item geliket wordt
+        from: "Colin"
       })
     });
-    const data = await directusResponse.json();
-    console.log("Directus:", data); //log de likes 
-    res.status(200).json({ success: true });
+    console.log(directusResponse)
+    // const data = await directusResponse.json();
+    // console.log("Directus:", data); //log drkt") client side een alert
+    res.redirect(303, `/radio/${req.params.name}`)
   }
   catch (error) {
     console.error("Error posting like:", error);
