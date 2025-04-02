@@ -45,7 +45,7 @@ app.get('/radio/:name', async (req, res) => {
     let radioName = decodeURIComponent(req.params.name);
     const station = radiostations.find(station => station.name === radioName);
     if (!station) {
-      return res.status(404).send('Radiostation niet gevonden');
+      return res.status(404).send('Radiostation niet gevonden'); //log als radiostation niet word gevonden (check url op dubbele spaties -> %20)
     }
 
 
