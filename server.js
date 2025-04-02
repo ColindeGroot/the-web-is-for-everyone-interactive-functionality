@@ -42,11 +42,12 @@ app.get('/radio/:name', async (req, res) => {
       name: station.name
     }));
 
-    let radioName = req.params.name.replace(/\+/g, ' ');
+    let radioName = decodeURIComponent(req.params.name);
     const station = radiostations.find(station => station.name === radioName);
     if (!station) {
       return res.status(404).send('Radiostation niet gevonden');
     }
+
 
     // Haal de shows-per-dag op met extra velden
     const showsPerDayResponse = await fetch('https://fdnd-agency.directus.app/items/mh_day?fields=date,shows.mh_shows_id.from,shows.mh_shows_id.until,shows.mh_shows_id.show.id,shows.mh_shows_id.show.body,shows.mh_shows_id.show.name,shows.mh_shows_id.show.radiostation.*,shows.mh_shows_id.show.users.mh_users_id.*,shows.mh_shows_id.show.users.*.*');
@@ -141,13 +142,22 @@ app.get('/radio/:name', async (req, res) => {
     }
     let weekDays = [];
     const daysOfWeek = ["maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag"];
-    
+
     for (let day = 0; day < 6; day++) {
       let d = new Date(monday);
       d.setDate(monday.getDate() + day);
       weekDays.push({ day: daysOfWeek[day], dayNumber: d.getDate() });
     }
-    
+
+
+    const filter = encodeURIComponent(JSON.stringify({ from: "Colin" }));
+    const likesForShows = await fetch(`https://fdnd-agency.directus.app/items/mh_messages?filter=${filter}`);
+    const likesForShowsJSON = await likesForShows.json();
+
+    const idsOfLikesForShows = likesForShowsJSON.data.map(like => like.for.toString());
+
+    console.log("Liked Show IDs:", idsOfLikesForShows);
+
 
     // Render de radio-pagina met alle benodigde data
     res.render('radio.liquid', {
@@ -156,7 +166,8 @@ app.get('/radio/:name', async (req, res) => {
       weekDays,
       selectedDay,
       timeSlots,
-      totalSlots
+      totalSlots,
+      likes: idsOfLikesForShows
     });
   } catch (error) {
     console.error("Error loading radio page:", error);
@@ -164,28 +175,50 @@ app.get('/radio/:name', async (req, res) => {
   }
 });
 
-app.post('/radio/show/:id/station/:name', async (req, res) => {
+//like posten
+app.post('/radio/:stationName/show/:id/like', async (req, res) => {
   console.log(req.params.id);
   try {
-    const directusResponse = await fetch('https://fdnd-agency.directus.app/items/mh_messages',
-       {
+    const directusResponse = await fetch('https://fdnd-agency.directus.app/items/mh_messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         text: "❤️",
-        for: `showId:` + req.params.id, //Hiermee wordt aangegeven voor welk item geliket wordt
+        for: req.params.id,
         from: "Colin"
       })
     });
-    console.log(directusResponse)
-    // const data = await directusResponse.json();
-    // console.log("Directus:", data); //log drkt") client side een alert
-    res.redirect(303, `/radio/${req.params.name}`)
-  }
-  catch (error) {
+    console.log(directusResponse);
+    res.redirect(303, `/radio/${req.params.stationName}`);
+  } catch (error) {
     console.error("Error posting like:", error);
+    res.status(500).send("Er is een fout opgetreden bij het liken.");
   }
 });
+
+app.post('/radio/:stationName/show/:id/unlike', async (req, res) => {
+  try {
+    // const filter = encodeURIComponent(JSON.stringify({ from: "Colin" }));
+    const likesResponse = await fetch(`https://fdnd-agency.directus.app/items/mh_messages?filter={"_and":[{"from": "Colin"},{"for": ${req.params.id}}]}`);
+    const likesJSON = await likesResponse.json();
+
+    if (likesJSON.data.length > 0) {
+      const likeId = likesJSON.data[0].id;
+
+      await fetch(`https://fdnd-agency.directus.app/items/mh_messages/${likeId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    res.redirect(303, `/radio/${req.params.stationName}`);
+  } catch (error) {
+    console.error("Error unliking show:", error);
+    res.status(500).send("Unliken niet gelukt!");
+  }
+});
+
+
 
 // Start de server
 app.listen(PORT, () => {

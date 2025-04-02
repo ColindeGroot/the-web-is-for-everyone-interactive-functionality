@@ -5,119 +5,124 @@
 
 <!-- Kalender: lijst met maandag t/m zaterdag -->
 <ul class="week-calendar">
-    {% for item in weekDays %}
-    <li class="{% if item.day == selectedDay %}active{% endif %}">
-        <a href="?day={{ item.day }}">{{ item.day | capitalize }} {{ item.dayNumber }}</a>
-    </li>
-    {% endfor %}
+  {% for item in weekDays %}
+  <li class="{% if item.day == selectedDay %}active{% endif %}">
+    <a href="?day={{ item.day }}">{{ item.day | capitalize }} {{ item.dayNumber }}</a>
+  </li>
+  {% endfor %}
 </ul>
 
 <main>
-    <p>Het programma van vandaag:</p>
+  <p>Het programma van vandaag:</p>
 
-    <div class="schedule-container">
-        <table class="schedule">
-            <thead>
-              <tr>
-                {% for label in timeSlots %}
-                  <th>{{ label }}</th>
-                {% endfor %}
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                {% assign currentSlot = 0 %}
-                {% assign sortedShows = shows | sort: "slotStart" %}
-                
-                {% for show in sortedShows %}
-                  {% if currentSlot < show.slotStart %}
-                    {% assign gap = show.slotStart | minus: currentSlot %}
-                    <td colspan="{{ gap }}"></td>
-                    {% assign currentSlot = show.slotStart %}
-                  {% endif %}
-          
-                  <td colspan="{{ show.colspan }}" class="show-cell">
-                    <h3 class="show-title">{{ show.title }}</h3>
-                    <span class="show-time">{{ show.from }} - {{ show.until }}</span>
-                    <p class="show-info">{{ show.body | truncate: 50 }}</p>
-                    {% if show.userAvatar %}
-                      <img class="show-image" src="https://fdnd-agency.directus.app/assets/{{ show.userAvatar }}" alt="Avatar">
-                    {% endif %}
-          
-                    <form action="/radio/show/{{ station.id }}/station/{{ station.name | replace: " ","%20"  }}" method="post" onsubmit="getData()" >
-                      <label hidden for="">like deze show</label>
-                      <input type="submit">
-                    </form>
+  <div class="schedule-container">
+    <table class="schedule">
+      <thead>
+        <tr>
+          {% for label in timeSlots %}
+          <th>{{ label }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          {% assign currentSlot = 0 %}
+          {% assign sortedShows = shows | sort: "slotStart" %}
 
-                  </td>
-                  
-                  {% assign currentSlot = currentSlot | plus: show.colspan %}
-                {% endfor %}
-                
-                {% if currentSlot < totalSlots %}
-                  {% assign gap = totalSlots | minus: currentSlot %}
-                  <td colspan="{{ gap }}"></td>
-                {% endif %}
-              </tr>
-            </tbody>
-          </table>
-    </div>
+          {% for show in sortedShows %}
+
+          {% if currentSlot < show.slotStart %} {% assign gap=show.slotStart | minus: currentSlot %} <td
+            colspan="{{ gap }}">
+            </td>
+            {% assign currentSlot = show.slotStart %}
+            {% endif %}
+
+            <td colspan="{{ show.colspan }}" class="show-cell">
+
+              <h3 class="show-title">{{ show.title }}</h3>
+              <span class="show-time">{{ show.from }} - {{ show.until }}</span>
+              <p class="show-info">{{ show.body | truncate: 50 }}</p>
+
+              {% if show.userAvatar %}
+              <img class="show-image" src="https://fdnd-agency.directus.app/assets/{{ show.userAvatar }}" alt="Avatar">
+              {% endif %}
+              {% assign showId = show.id | string | strip %}
+
+              {% if likes contains showId %}
+                {% comment %} /radio/:stationName/show/:id/unlike {% endcomment %}
+              <form action="/radio/{{ station.name | replace: " ", "%20" }}/show/{{ show.id }}/unlike" method="post">
+                <input type="submit" value="Unlike">
+              </form>
+
+              {% else %}
+
+              <form action="/radio/{{ station.name | replace: " ", "%20" }}/show/{{ show.id }}/like" method="post">
+                <input type="submit" value="Like">
+              </form>
+
+              {% endif %}
+
+            </td>
+
+
+            {% assign currentSlot = currentSlot | plus: show.colspan %}
+            {% endfor %}
+            <td></td>
+
+            {% if currentSlot < totalSlots %} {% assign gap=totalSlots | minus: currentSlot %} <td colspan="{{ gap }}">
+              </td>
+              {% endif %}
+        </tr>
+      </tbody>
+    </table>
+  </div>
 </main>
 
 <script type="module">
-// succes enhanchment
-// We maken hieronder aannames over wat de browser ondersteunt
-// Dus laten we deze eerst testen met Feature Detection
-// https://developer.mozilla.org/en-US/docs/Learn_web_development/Extensions/Testing/Feature_detection
-if ('fetch' in window && 'DOMParser' in window) {
+  // https://developer.mozilla.org/en-US/docs/Learn_web_development/Extensions/Testing/Feature_detection
+  if ('fetch' in window && 'DOMParser' in window) {
 
-  // Als er ergens op de pagina een formulier wordt gesubmit..
-  // (We maken hier gebruik van Event Delegation)
-  document.addEventListener('submit', async function(event) {
+    document.addEventListener('submit', async function (event) {
 
-    // Hou in een variabele bij welk formulier dat was
-    const form = event.target
+      const form = event.target
 
-    // Als dit formulier geen data-enhanced attribuut heeft, doe dan niks
-    // Dit doen we, zodat we sommige formulieren op de pagina kunnen 'enhancen'
-    // Data attributen mag je zelf verzinnen; dit is dus niet iets speciaals
-    // https://developer.mozilla.org/en-US/docs/Learn_web_development/Howto/Solve_HTML_problems/Use_data_attributes
-    if (!form.hasAttribute('data-enhanced')) {
-      return
-    }
+      // Data attributen mag je zelf verzinnen; dit is dus niet iets speciaals
+      if (!form.hasAttribute('data-enhanced')) {
+        return
+      }
 
-    // Voorkom de standaard submit van de browser
-    // Let op: hiermee overschrijven we de default Loading state van de browser...
-    event.preventDefault()
+      // Voorkom de standaard submit van de browser
+      // Let op: hiermee overschrijven we de default Loading state van de browser...
+      event.preventDefault()
 
-    // Doe een fetch naar de server, net als hoe de browser dit normaal zou doen
-    // Gebruik daarvoor het action en method attribuut van het originele formulier
-    // Inclusief alle formulierelementen
-    const response = await fetch(form.action, {
-      method: form.method,
-      body: new URLSearchParams(new FormData(form))
+      // Doe een fetch naar de server, net als hoe de browser dit normaal zou doen
+      // Gebruik daarvoor het action en method attribuut van het originele formulier
+      // Inclusief alle formulierelementen
+      const response = await fetch(form.action, {
+        method: form.method,
+        body: new URLSearchParams(new FormData(form))
+      })
+
+      // De server redirect op de normale manier, en geeft HTML terug
+      // (De server weet niet eens dat deze fetch via client-side JavaScript gebeurde)
+      const responseText = await response.text()
+
+      // Normaal zou de browser die HTML parsen en weergeven, maar daar moeten we nu zelf iets mee
+      // Parse de nieuwe HTML en maak hiervan een nieuw Document Object Model in het geheugen
+      const parser = new DOMParser()
+      const responseDOM = parser.parseFromString(responseText, 'text/html')
+
+      // Zoek in die nieuwe DOM onze nieuwe state op, die we via Liquid hebben klaargemaakt
+      // We gebruiken hiervoor het data-enhanced attribuut, zodat we weten waar we naar moeten zoeken
+      // (Hierdoor kunnen we ook meerdere formulieren op dezelfde pagina gebruiken)
+      const newState = responseDOM.querySelector('[data-enhanced="' + form.getAttribute('data-enhanced') + '"]')
+
+      // Overschrijf ons formulier met de nieuwe HTML
+      // Hier wil je waarschijnlijk de Loading state vervangen door een Success state
+      form.outerHTML = newState.outerHTML
+
     })
-
-    // De server redirect op de normale manier, en geeft HTML terug
-    // (De server weet niet eens dat deze fetch via client-side JavaScript gebeurde)
-    const responseText = await response.text()
-
-    // Normaal zou de browser die HTML parsen en weergeven, maar daar moeten we nu zelf iets mee
-    // Parse de nieuwe HTML en maak hiervan een nieuw Document Object Model in het geheugen
-    const parser = new DOMParser()
-    const responseDOM = parser.parseFromString(responseText, 'text/html')
-
-    // Zoek in die nieuwe DOM onze nieuwe state op, die we via Liquid hebben klaargemaakt
-    // We gebruiken hiervoor het data-enhanced attribuut, zodat we weten waar we naar moeten zoeken
-    // (Hierdoor kunnen we ook meerdere formulieren op dezelfde pagina gebruiken)
-    const newState = responseDOM.querySelector('[data-enhanced="' + form.getAttribute('data-enhanced') + '"]')
-
-    // Overschrijf ons formulier met de nieuwe HTML
-    // Hier wil je waarschijnlijk de Loading state vervangen door een Success state
-    form.outerHTML = newState.outerHTML
-
-  })
-}
+  }
 
 </script>
 
